@@ -68,6 +68,7 @@ func parseCertUpdate(msg jsonq.JsonQuery) (cd CertData, err error) {
 
 func main() {
 	config := pubnub.NewConfig()
+	logrus.WithField("env", os.Environ()).Info("Starting up")
 	config.SubscribeKey = os.Getenv("PN_SUBSCRIBE_KEY")
 	config.PublishKey = os.Getenv("PN_PUBLISH_KEY")
 	config.UUID = os.Getenv("PN_UUID")
