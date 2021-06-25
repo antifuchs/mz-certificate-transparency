@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/CaliDog/certstream-go"
+	"github.com/etherlabsio/healthcheck/v2"
+	"github.com/gorilla/mux"
+
 	"github.com/jmoiron/jsonq"
 	pubnub "github.com/pubnub/go"
 	"github.com/sirupsen/logrus"
@@ -68,6 +73,41 @@ func main() {
 	config.UUID = os.Getenv("PN_UUID")
 	pn := pubnub.NewPubNub(config)
 
+	// Health checks:
+	var lastRead time.Time
+	var lastSent time.Time
+	r := mux.NewRouter()
+	r.Handle("/healthcheck", healthcheck.Handler(
+		// WithTimeout allows you to set a max overall timeout.
+		healthcheck.WithTimeout(5*time.Second),
+
+		healthcheck.WithChecker(
+			"read", healthcheck.CheckerFunc(
+				func(ctx context.Context) error {
+					if time.Now().Sub(lastRead) > 10*time.Minute {
+						return fmt.Errorf("Last read was at %v, more than 10min ago", lastRead)
+					}
+					return nil
+				},
+			)),
+		healthcheck.WithChecker(
+			"sent", healthcheck.CheckerFunc(
+				func(ctx context.Context) error {
+					if time.Now().Sub(lastSent) > 10*time.Minute {
+						return fmt.Errorf("Last send was at %v, more than 10min ago", lastRead)
+					}
+					return nil
+				},
+			)),
+	))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	go func() {
+		http.ListenAndServe(":"+port, r)
+	}()
+
 	for {
 		certs, errStream := certstream.CertStreamEventStream(false)
 		maxLifetime := time.After(10 * time.Minute)
@@ -80,6 +120,8 @@ func main() {
 					logrus.WithError(err).Warn("Error decoding certstream event")
 					continue Inner
 				}
+				lastRead = time.Now()
+
 				logrus.WithFields(logrus.Fields{
 					"message": cd,
 				}).Debug("Received")
@@ -88,6 +130,7 @@ func main() {
 					logrus.WithError(err).Error("Could not publish")
 					break Inner
 				}
+				lastSent = time.Now()
 			case err := <-errStream:
 				logrus.WithError(err).Error("certstream receiver received error")
 				break Inner
