@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,8 +12,8 @@ import (
 	"github.com/etherlabsio/healthcheck/v2"
 	"github.com/gorilla/mux"
 
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/jmoiron/jsonq"
-	pubnub "github.com/pubnub/go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -67,12 +68,23 @@ func parseCertUpdate(msg jsonq.JsonQuery) (cd CertData, err error) {
 }
 
 func main() {
-	config := pubnub.NewConfig()
 	logrus.WithField("env", os.Environ()).Info("Starting up")
-	config.SubscribeKey = os.Getenv("PN_SUBSCRIBE_KEY")
-	config.PublishKey = os.Getenv("PN_PUBLISH_KEY")
-	config.UUID = os.Getenv("PN_UUID")
-	pn := pubnub.NewPubNub(config)
+
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers": os.Getenv("KAFKA_BROKER"),
+		"client.id":         os.Getenv("KAFKA_CLIENTID"),
+		"acks":              "all",
+		"security.protocol": "sasl_ssl",
+		"sasl.mechanism":    "SCRAM-SHA-256",
+		"sasl.username":     os.Getenv("KAFKA_USER"),
+		"sasl.password":     os.Getenv("KAFKA_PASSWORD"),
+	})
+	if err != nil {
+		logrus.WithError(err).Fatal("couldn't connect to kafka")
+	}
+	deliveryChan := make(chan kafka.Event, 10000)
+	topic_name := os.Getenv("KAFKA_TOPIC")
+	partition := kafka.TopicPartition{Topic: &topic_name, Partition: kafka.PartitionAny}
 
 	// Health checks:
 	var lastRead time.Time
@@ -109,6 +121,17 @@ func main() {
 		http.ListenAndServe(":"+port, r)
 	}()
 
+	go func() {
+		for e := range producer.Events() {
+			switch ev := e.(type) {
+			case *kafka.Message:
+				if ev.TopicPartition.Error != nil {
+					logrus.WithError(ev.TopicPartition.Error).WithField("partition", ev.TopicPartition).Warn("Failed to deliver message")
+				}
+			}
+		}
+	}()
+
 	for {
 		certs, errStream := certstream.CertStreamEventStream(false)
 		maxLifetime := time.After(10 * time.Minute)
@@ -126,11 +149,15 @@ func main() {
 				logrus.WithFields(logrus.Fields{
 					"message": cd,
 				}).Debug("Received")
-				_, _, err = pn.Publish().Channel("certstream").Message(cd).UsePost(true).Execute()
+				cdB, err := json.Marshal(cd)
 				if err != nil {
-					logrus.WithError(err).Error("Could not publish")
+					logrus.WithError(err).Error("Couldn't serialize")
 					break Inner
 				}
+				producer.Produce(&kafka.Message{
+					TopicPartition: partition,
+					Value:          cdB,
+				}, deliveryChan)
 				lastSent = time.Now()
 			case err := <-errStream:
 				logrus.WithError(err).Error("certstream receiver received error")

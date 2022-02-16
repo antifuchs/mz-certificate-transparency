@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/CaliDog/certstream-go v0.0.0-20200713031452-eca7997412f1
 	github.com/brianolson/cbor_go v1.0.0 // indirect
+	github.com/confluentinc/confluent-kafka-go v1.8.2
 	github.com/etherlabsio/healthcheck/v2 v2.0.0
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/gorilla/mux v1.8.0
