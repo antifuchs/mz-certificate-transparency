@@ -156,10 +156,14 @@ func main() {
 					logrus.WithError(err).Error("Couldn't serialize")
 					break Inner
 				}
-				producer.Produce(&kafka.Message{
+				err = producer.Produce(&kafka.Message{
 					TopicPartition: partition,
 					Value:          cdB,
 				}, deliveryChan)
+				if err != nil {
+					logrus.WithError(err).Warn("Couldn't produce")
+					time.Sleep(1 * time.Second)
+				}
 				lastSent = time.Now()
 			case err := <-errStream:
 				logrus.WithError(err).Error("certstream receiver received error")
