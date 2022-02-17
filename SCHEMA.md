@@ -82,7 +82,7 @@ https://materialize.com/docs/sql/functions/now_and_mz_logical_timestamp/
 for a summary of how that works.
 
 ``` sql
-RECREATE MATERIALIZED VIEW IF NOT EXISTS ct_expired_certs AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS ct_expired_certs AS
 SELECT
       domains,
       issuer_cn,

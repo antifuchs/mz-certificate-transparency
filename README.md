@@ -1,8 +1,8 @@
 # Fun times with certificate transparency logs and materialize!
 
 This repo contains a little demo of what you can do to analyze my
-favorite streaming distributed database: TLS certificate transparency
-logs.
+favorite distributed, incrementally-updating database that uses merkle
+trees: TLS certificate transparency logs.
 
 What are certificate transparency logs (ct logs, for short), you may
 ask? Those are a cryptographically sealed and versioned set of
