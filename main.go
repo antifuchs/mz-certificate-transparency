@@ -68,7 +68,9 @@ func parseCertUpdate(msg jsonq.JsonQuery) (cd CertData, err error) {
 }
 
 func main() {
-	logrus.WithField("env", os.Environ()).Info("Starting up")
+	// logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.InfoLevel)
+	logrus.WithField("env", os.Environ()).Debug("Starting up")
 
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": os.Getenv("KAFKA_BROKER"),
