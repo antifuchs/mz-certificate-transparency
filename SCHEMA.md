@@ -13,7 +13,7 @@ certificate_transparency_src (json_data)
 FROM KAFKA BROKER
 -- this is one of your redpanda "cluster hosts":
 'broker1:89273, broker2:89273'
-TOPIC 'your-topic-name'
+TOPIC 'mz-hackday-demo'
 WITH (
   security_protocol = 'sasl_ssl',
   client_id = 'materialize_cloud', -- could be anything
@@ -122,4 +122,18 @@ Now, let's look at the issuers that give out the longest-validity certs:
 
 ```sql
 select max(EXTRACT(EPOCH FROM validity)) * '1 second'::interval, issuer_cn from ct_long_validity_certs group by 2 order by 1 desc limit 10;
+```
+
+Or, let's find those certificates that look like they may have the
+same kind of inadvertently-weird validity:
+
+```sql
+SELECT
+    max(EXTRACT(EPOCH FROM validity)) * '1 second'::interval as max_validity,
+    issuer_cn from ct_long_validity_certs
+WHERE
+    validity > '90 days'::interval
+    and validity < '91 days'::interval
+GROUP BY 2
+ORDER BY 1 DESC;
 ```
